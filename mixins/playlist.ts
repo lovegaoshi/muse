@@ -82,6 +82,7 @@ export async function get_playlist_suggestions(
   playlistId: string,
   continuation: string,
   options: Omit<PaginationOptions, "continuation"> = {},
+  stopAfter = (tracks: PlaylistItem[]) => false,
 ): Promise<PlaylistSuggestions> {
   const { signal, limit = 6 } = options;
 
@@ -116,6 +117,7 @@ export async function get_more_playlist_tracks(
   playlistId: string,
   continuation: string,
   options: Omit<PaginationOptions, "continuation">,
+  stopAfter = (tracks: PlaylistItem[]) => false,
 ): Promise<MorePlaylistTracks> {
   const { signal, limit = 100 } = options;
 
@@ -129,6 +131,9 @@ export async function get_more_playlist_tracks(
     limit,
     (params: any) => request_json(endpoint, { data, params, signal }),
     (contents) => parse_playlist_items(contents),
+    undefined,
+    undefined,
+    stopAfter,
   );
 
   const tracks: MorePlaylistTracks = {
@@ -142,6 +147,7 @@ export async function get_more_playlist_tracks(
 export async function get_playlist(
   playlistId: string,
   options?: GetPlaylistOptions,
+  stopAfter = (tracks: PlaylistItem[]) => false,
 ): Promise<Playlist> {
   const { limit = 100, related = false, suggestions_limit = 0, signal } =
     options || {};
@@ -270,7 +276,7 @@ export async function get_playlist(
       ? Math.min(limit ?? song_count, song_count)
       : limit;
 
-    if ("continuations" in results) {
+    if ("continuations" in results && !stopAfter(playlist.tracks)) {
       const continued_data = await get_more_playlist_tracks(
         playlistId,
         results,
@@ -278,6 +284,7 @@ export async function get_playlist(
           limit,
           signal,
         },
+        stopAfter,
       );
 
       playlist.tracks.push(...continued_data.tracks);

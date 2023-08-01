@@ -1,3 +1,4 @@
+import { PlaylistItem } from "./parsers/playlists.ts";
 import { jo } from "./util.ts";
 
 export async function get_continuations(
@@ -8,6 +9,7 @@ export async function get_continuations(
   parse: (data: any) => any[],
   _ctoken_path = "",
   reloadable = false,
+  stopAfter = (tracks: any[]) => false
 ) {
   const get_params = () =>
     reloadable
@@ -35,8 +37,10 @@ export async function get_continuations(
     const contents = get_continuation_contents(results, parse);
 
     if (contents.length == 0) break;
-
+  
     items.push(...contents);
+    
+    if (stopAfter(contents)) break;
   }
 
   return { items, continuation };
