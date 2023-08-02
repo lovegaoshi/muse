@@ -29,5 +29,15 @@ jobs:
       - name: npm build
         run: deno run -A ./scripts/npm.ts ${{steps.get_tag_version.outputs.TAG_VERSION}}
 
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
+      - name: Push Build to Github
+        run: |
+          cd npm
+          git init
+          git branch -m apm-release
+          git remote add origin https://${{ secrets.TOKEN }}@github.com/lovegaoshi/muse.git
+          git add .
+          git config --global user.email "love@gaoshi.com"
+          git config --global user.name "gaoshi"
+          git commit -m 'release'
+          git push --set-upstream origin apm-release --force
+
