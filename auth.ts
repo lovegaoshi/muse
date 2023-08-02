@@ -6,7 +6,7 @@ import { ERROR_CODE, MuseError } from "./errors.ts";
 
 export interface Token {
   access_token: string;
-  refresh_token: string;
+  refresh_token: string; 
   token_type: string;
   expires_date: Date;
   expires_in: number;
@@ -38,7 +38,7 @@ interface AuthenticatorEventMap {
   "token-changed": Event;
 }
 
-export interface Authenticator extends EventTarget {
+export interface Authenticator {
   addEventListener<K extends keyof AuthenticatorEventMap>(
     type: K,
     listener: (this: Authenticator, ev: AuthenticatorEventMap[K]) => any,
@@ -64,13 +64,12 @@ export interface Authenticator extends EventTarget {
 /**
  * Authenticates with youtube's API
  */
-export class Authenticator extends EventTarget {
+export class Authenticator {
   _token: Token | null = null;
   store: Store;
   client: RequestClient;
 
   constructor(options: AuthenticatorOptions) {
-    super();
     this.token = options.token ?? options.store.get("token") ?? null;
     this.store = options.store;
     this.client = options.client;
@@ -80,7 +79,6 @@ export class Authenticator extends EventTarget {
     if (token) token.expires_date = new Date(token.expires_date);
     this._token = token;
     this.store?.set("token", token);
-    this.dispatchEvent(new Event("token-changed"));
   }
 
   get token() {
@@ -93,13 +91,6 @@ export class Authenticator extends EventTarget {
   async requires_login() {
     if (!this.has_token()) {
       let fn: () => Promise<void> = () => Promise.resolve();
-      this.dispatchEvent(
-        new CustomEvent("requires-login", {
-          detail: (_fn: () => Promise<void>) => {
-            fn = _fn;
-          },
-        }) as RequiresLoginEvent,
-      );
 
       await fn();
     }
