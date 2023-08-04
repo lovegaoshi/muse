@@ -38,7 +38,7 @@ await build({
   package: {
     // package.json properties
     name: "libmuse",
-    version: Deno.args[0] || await get_latest_version(),
+    version: Deno.args[0] || "0.0.1",
     description:
       "A library to interact with the YouTube Music (InnerTube) api.",
     tags: [
