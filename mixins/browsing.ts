@@ -329,7 +329,7 @@ export interface Song {
   playbackTracking: any;
   videostatsPlaybackUrl: string;
   captions: Caption[];
-  hlsManifestUrl: string;
+  hlsManifestUrl: string | null;
   aspectRatio: number;
   serverAbrStreamingUrl: string;
 }
@@ -367,7 +367,7 @@ export async function get_song(
 ): Promise<Song> {
   const response = await request_json("player", {
     data: {
-      ...CONSTANTS2.IOS.DATA,
+      ...CONSTANTS2.ANDROID.DATA,
       contentCheckOk: true,
       racyCheckOk: true,
       video_id,
@@ -400,8 +400,8 @@ export async function get_song(
           name: j(caption, "name.runs[0].text"),
           vssId: caption.vssId,
           lang: caption.languageCode,
-          translable: caption.isTranslatable,
-        })) ?? [],
+          translatable: caption.isTranslatable,
+        } as Caption)) ?? [],
     hlsManifestUrl: response.streamingData.hlsManifestUrl,
     aspectRatio: response.videoDetails.aspectRatio,
     serverAbrStreamingUrl: response.streamingData.serverManifestStreamUrl,
@@ -428,10 +428,27 @@ export async function get_song_related(
   return parse_mixed_content(sections);
 }
 
-export interface Lyrics {
+export interface BaseTimedLyrics {
   lyrics: string;
   source: string;
+  timed: boolean;
 }
+
+export interface UnTimedLyrics extends BaseTimedLyrics {
+  timed: false;
+}
+
+export interface TimedLyrics extends BaseTimedLyrics {
+  timed: true;
+  timed_lyrics: {
+    line: string;
+    start: number;
+    end: number;
+    id: string;
+  }[];
+}
+
+export type Lyrics = TimedLyrics | UnTimedLyrics;
 
 export async function get_lyrics(
   browseId: string,
@@ -444,29 +461,69 @@ export async function get_lyrics(
   }
 
   const json = await request_json("browse", {
-    data: { browseId },
+    data: { browseId, ...CONSTANTS2.ANDROID.DATA },
     signal: options.signal,
   });
 
-  const lyrics: Lyrics = {
-    lyrics: jo(
-      json,
-      "contents",
-      SECTION_LIST_ITEM,
-      DESCRIPTION_SHELF,
-      DESCRIPTION,
-    ),
-    source: jo(
-      json,
-      "contents",
-      SECTION_LIST_ITEM,
-      DESCRIPTION_SHELF,
-      "footer",
-      RUN_TEXT,
-    ),
-  };
+  const synced_data = jo(
+    json,
+    "contents.elementRenderer.newElement.type.componentType.model.timedLyricsModel.lyricsData",
+  );
 
-  return lyrics;
+  if (synced_data) {
+    const lyrics: Lyrics = {
+      timed: true,
+      source: jo(
+        synced_data,
+        "sourceMessage",
+      ),
+      lyrics: jo(synced_data, "timedLyricsData")
+        ?.map((line: any) => {
+          return line.lyricLine;
+        })
+        .map((line: string) => {
+          if (line === "♪") {
+            return "\n";
+          }
+
+          return line;
+        })
+        .join("\n")
+        .trim(),
+      timed_lyrics: jo(synced_data, "timedLyricsData")
+        ?.map((line: any) => {
+          return {
+            line: line.lyricLine,
+            start: +line.cueRange.startTimeMilliseconds,
+            end: +line.cueRange.endTimeMilliseconds,
+            id: line.cueRange.metadata.id,
+          };
+        }) ?? [],
+    };
+
+    return lyrics;
+  } else {
+    const lyrics: Lyrics = {
+      timed: false,
+      lyrics: jo(
+        json,
+        "contents",
+        SECTION_LIST_ITEM,
+        DESCRIPTION_SHELF,
+        DESCRIPTION,
+      ),
+      source: jo(
+        json,
+        "contents",
+        SECTION_LIST_ITEM,
+        DESCRIPTION_SHELF,
+        "footer",
+        RUN_TEXT,
+      ),
+    };
+
+    return lyrics;
+  }
 }
 
 export interface ArtistAlbums {
