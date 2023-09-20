@@ -204,7 +204,7 @@ export async function get_playlist(
     trackCount: trackCount,
     duration,
     duration_seconds: 0,
-    tracks: parse_playlist_items(results.contents),
+    tracks: parse_playlist_items(results.contents ?? []),
     continuation: null,
     suggestions: [],
     suggestions_continuation: null,
@@ -220,7 +220,9 @@ export async function get_playlist(
   if ("continuations" in section_list) {
     let params = get_continuation_params(section_list);
 
-    if (own_playlist && (suggestions_limit > 0 || related)) {
+    if (
+      params.continuation && own_playlist && (suggestions_limit > 0 || related)
+    ) {
       const suggested = await request(params);
       const continuation = j(suggested, SECTION_LIST_CONTINUATION);
 
@@ -250,7 +252,7 @@ export async function get_playlist(
       playlist.suggestions_continuation = continued_suggestions.continuation;
     }
 
-    if (related) {
+    if (params.continuation && related) {
       const response = await request(params);
       const continuation = jo(response, SECTION_LIST_CONTINUATION);
 
@@ -267,15 +269,15 @@ export async function get_playlist(
         playlistId,
         results,
         {
-          limit,
+          limit: limit - playlist.tracks.length,
           signal,
         },
         stopAfter,
       );
 
-      playlist.tracks.push(...continued_data.tracks);
-      playlist.continuation = continued_data.continuation;
-    }
+    playlist.tracks.push(...continued_data.tracks);
+    playlist.continuation = continued_data.continuation;
+  }
 
   playlist.duration_seconds = sum_total_duration(playlist);
 
@@ -332,9 +334,13 @@ export interface EditPlaylistOptions extends AbortOptions {
   add_videos?: string[];
   remove_videos?: { videoId: string; setVideoId?: string }[];
   add_source_playlists?: string[];
+  dedupe?: "check" | "drop_duplicate" | "skip";
 }
 
+export type EditPlaylistStatus = "STATUS_SUCCEEDED" | "STATUS_FAILED";
+
 export interface EditPlaylistResult {
+  status: EditPlaylistStatus;
   added: {
     videoId: string;
     setVideoId: string;
@@ -353,6 +359,7 @@ export async function edit_playlist(
     add_videos,
     remove_videos,
     add_source_playlists,
+    dedupe,
     signal,
   } = options;
   await check_auth();
@@ -362,6 +369,14 @@ export async function edit_playlist(
   };
 
   const actions: ({ action: string } & Record<string, any>)[] = [];
+
+  const dedupeOption = dedupe === "check"
+    ? "DEDUPE_OPTION_CHECK"
+    : dedupe === "drop_duplicate"
+    ? "DEDUPE_OPTION_DROP_DUPLICATE"
+    : dedupe === "skip"
+    ? "DEDUPE_OPTION_SKIP"
+    : null;
 
   if (title) {
     actions.push({
@@ -399,6 +414,7 @@ export async function edit_playlist(
       actions.push({
         action: "ACTION_ADD_VIDEO",
         addedVideoId: video_id,
+        dedupeOption,
       });
     });
   }
@@ -426,6 +442,7 @@ export async function edit_playlist(
       actions.push({
         action: "ACTION_ADD_PLAYLIST",
         addedFullListId: playlist_id,
+        dedupeOption,
       });
     });
   }
@@ -436,6 +453,7 @@ export async function edit_playlist(
 
   const result: EditPlaylistResult = {
     added: [],
+    status: json.status,
   };
 
   if ("playlistEditResults" in json) {
@@ -457,7 +475,7 @@ export async function edit_playlist(
 export async function delete_playlist(
   playlistId: string,
   options: AbortOptions = {},
-): Promise<any> {
+): Promise<EditPlaylistStatus> {
   await check_auth();
 
   const data = {
@@ -469,14 +487,18 @@ export async function delete_playlist(
     signal: options.signal,
   });
 
-  return "status" in json ? json.status : json;
+  return json.status;
+}
+
+export interface AddPlaylistOptions extends AbortOptions {
+  dedupe?: EditPlaylistOptions["dedupe"];
 }
 
 export function add_playlist_sources(
   playlistId: string,
   source_playlists: string[],
-  options: AbortOptions = {},
-): Promise<any> {
+  options: AddPlaylistOptions = {},
+): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, {
     add_source_playlists: source_playlists,
     ...options,
@@ -486,8 +508,8 @@ export function add_playlist_sources(
 export function add_playlist_items(
   playlistId: string,
   video_ids: string[],
-  options: AbortOptions = {},
-): Promise<any> {
+  options: AddPlaylistOptions = {},
+): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, { add_videos: video_ids, ...options });
 }
 
@@ -495,7 +517,7 @@ export function remove_playlist_items(
   playlistId: string,
   video_ids: { videoId: string; setVideoId: string }[],
   options: AbortOptions = {},
-): Promise<any> {
+): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, {
     remove_videos: video_ids,
     ...options,

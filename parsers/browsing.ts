@@ -1,4 +1,5 @@
 import STRINGS from "../locales/strings.json" assert { type: "json" };
+import { LikeStatus } from "../mod.ts";
 
 import {
   BADGE_LABEL,
@@ -32,9 +33,15 @@ import { get_option } from "../setup.ts";
 import { j, jo } from "../util.ts";
 import {
   ArtistRun,
+  get_library_like_status,
+  get_menu_like_status,
+  get_menu_tokens,
+  get_shuffle_and_radio_ids,
+  MenuTokens,
   parse_song_artists,
   parse_song_artists_runs,
   parse_song_runs,
+  ShuffleAndRadioIds,
   SongArtist,
   SongRuns,
 } from "./songs.ts";
@@ -385,7 +392,7 @@ export function parse_mood_or_genre(result: any[]): ParsedMoodOrGenre {
 
 export type AlbumType = "album" | "single" | "ep";
 
-export interface ParsedAlbum {
+export interface ParsedAlbum extends ShuffleAndRadioIds {
   type: "album";
   title: string;
   year: string | null;
@@ -395,6 +402,7 @@ export interface ParsedAlbum {
   isExplicit: boolean;
   album_type: AlbumType | null;
   artists: ArtistRun[];
+  libraryLikeStatus: LikeStatus | null;
 }
 
 export function parse_album(result: any): ParsedAlbum {
@@ -430,6 +438,8 @@ export function parse_album(result: any): ParsedAlbum {
     isExplicit: jo(result, SUBTITLE_BADGE_LABEL) != null,
     album_type: j(result, SUBTITLE),
     artists: runs,
+    libraryLikeStatus: get_library_like_status(result),
+    ...get_shuffle_and_radio_ids(result),
   };
 }
 
@@ -466,6 +476,8 @@ export function parse_single(result: any): ParsedAlbum {
     isExplicit: jo(result, SUBTITLE_BADGE_LABEL) != null,
     artists: runs,
     album_type: null,
+    libraryLikeStatus: get_library_like_status(result),
+    ...get_shuffle_and_radio_ids(result),
   };
 }
 
@@ -476,6 +488,8 @@ export interface ParsedSong extends SongRuns {
   playlistId: string | null;
   isExplicit: boolean;
   thumbnails: Thumbnail[];
+  likeStatus: LikeStatus | null;
+  feedbackTokens: MenuTokens | null;
 }
 
 export function parse_song(result: any): ParsedSong {
@@ -486,6 +500,8 @@ export function parse_song(result: any): ParsedSong {
     playlistId: jo(result, NAVIGATION_PLAYLIST_ID),
     thumbnails: j(result, THUMBNAIL_RENDERER),
     isExplicit: jo(result, SUBTITLE_BADGE_LABEL) != null,
+    feedbackTokens: get_menu_tokens(result),
+    likeStatus: get_menu_like_status(result),
     ...parse_song_runs(result.subtitle.runs),
   };
 }
@@ -544,6 +560,7 @@ export interface ParsedVideo {
   playlistId: string | null;
   thumbnails: Thumbnail[];
   views: string | null;
+  likeStatus: LikeStatus | null;
 }
 
 export function parse_video(result: any): ParsedVideo {
@@ -558,6 +575,7 @@ export function parse_video(result: any): ParsedVideo {
     playlistId: jo(result, NAVIGATION_PLAYLIST_ID),
     thumbnails: j(result, THUMBNAIL_RENDERER),
     views: runs[runs.length - 1].text,
+    likeStatus: get_menu_like_status(result),
   };
 }
 
@@ -594,6 +612,8 @@ export function parse_top_song(result: any): Ranked<ParsedSong> {
         id: j(album_run, NAVIGATION_BROWSE_ID),
       }
       : null,
+    feedbackTokens: get_menu_tokens(result),
+    likeStatus: get_menu_like_status(result),
   };
 }
 
@@ -613,6 +633,7 @@ export function parse_top_video(result: any): Ranked<ParsedVideo> {
     views: runs[runs.length - 1].text,
     rank: j(rank, TEXT_RUN_TEXT),
     change: jo(rank, "icon.iconType")?.split("_")[2] || null,
+    likeStatus: get_menu_like_status(result),
   };
 }
 
@@ -627,6 +648,7 @@ export function parse_top_artist(result: any): Ranked<RelatedArtist> {
     thumbnails: j(result, THUMBNAILS),
     rank: j(rank, TEXT_RUN_TEXT),
     change: jo(rank, "icon.iconType")?.split("_")[2] || null,
+    ...get_shuffle_and_radio_ids(result),
   };
 }
 
@@ -665,6 +687,8 @@ export function parse_trending(
     duration_seconds: null,
     isExplicit: jo(result, BADGE_LABEL) != null,
     views: null,
+    feedbackTokens: get_menu_tokens(result),
+    likeStatus: get_menu_like_status(result),
   };
 
   if (album_flex) {
@@ -687,7 +711,7 @@ export function parse_trending(
   }
 }
 
-export interface ParsedPlaylist {
+export interface ParsedPlaylist extends ShuffleAndRadioIds {
   type: "playlist";
   title: string;
   playlistId: string;
@@ -697,6 +721,7 @@ export interface ParsedPlaylist {
   description: string | null;
   count: string | null;
   author: ArtistRun[] | null;
+  libraryLikeStatus: LikeStatus | null;
 }
 
 export function parse_playlist(data: any) {
@@ -721,6 +746,8 @@ export function parse_playlist(data: any) {
     description: null,
     count: null,
     author: null,
+    libraryLikeStatus: get_library_like_status(data),
+    ...get_shuffle_and_radio_ids(data),
   };
 
   const subtitle = data.subtitle;
@@ -741,7 +768,7 @@ export function parse_playlist(data: any) {
   return playlist;
 }
 
-export interface RelatedArtist {
+export interface RelatedArtist extends ShuffleAndRadioIds {
   type: "artist" | "channel";
   name: string;
   browseId: string;
@@ -763,10 +790,11 @@ export function parse_related_artist(data: any): RelatedArtist {
     browseId: j(data, TITLE, NAVIGATION_BROWSE_ID),
     subscribers,
     thumbnails: j(data, THUMBNAIL_RENDERER),
+    ...get_shuffle_and_radio_ids(data),
   };
 }
 
-export interface WatchPlaylist {
+export interface WatchPlaylist extends ShuffleAndRadioIds {
   type: "watch-playlist";
   title: string;
   playlistId: string;
@@ -779,6 +807,7 @@ export function parse_watch_playlist(data: any): WatchPlaylist {
     title: j(data, TITLE_TEXT),
     playlistId: j(data, NAVIGATION_WATCH_PLAYLIST_ID),
     thumbnails: j(data, THUMBNAIL_RENDERER),
+    ...get_shuffle_and_radio_ids(data),
   };
 }
 
@@ -809,4 +838,10 @@ export function is_ranked<T>(
   item: T | Ranked<T>,
 ): item is Ranked<T> {
   return typeof (item as any).rank === "string";
+}
+
+export function find_context_param(json: any, key: string) {
+  return j(json, "responseContext.serviceTrackingParams[0].params").find((
+    param: any,
+  ) => param.key === key).value;
 }

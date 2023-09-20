@@ -1,10 +1,13 @@
 import {
   FEEDBACK_TOKEN,
+  find_object_by_icon_name,
+  MENU_ITEMS,
   NAVIGATION_BROWSE_ID,
   NAVIGATION_PAGE_TYPE,
+  NAVIGATION_WATCH_PLAYLIST_ID,
   TOGGLE_MENU,
 } from "../nav.ts";
-import { jo } from "../util.ts";
+import { j, jo } from "../util.ts";
 import { _ } from "./browsing.ts";
 import {
   get_browse_id,
@@ -226,6 +229,7 @@ export function parse_song_album(data: any, index: number): Album | null {
 export interface MenuTokens {
   add: string | null;
   remove: string | null;
+  saved: boolean;
 }
 
 export function parse_song_menu_tokens(item: any): MenuTokens {
@@ -241,7 +245,7 @@ export function parse_song_menu_tokens(item: any): MenuTokens {
     );
 
   // swap if already in library
-  if (service_type == "LIBRARY_REMOVE") {
+  if (service_type == "LIBRARY_SAVED") {
     [library_add_token, library_remove_token] = [
       library_remove_token,
       library_add_token,
@@ -251,7 +255,95 @@ export function parse_song_menu_tokens(item: any): MenuTokens {
   return {
     add: library_add_token,
     remove: library_remove_token,
+    saved: service_type == "LIBRARY_SAVED",
   };
+}
+
+export function get_menu_tokens(item: any) {
+  const toggle_menu = find_object_by_icon_name(
+    j(item, MENU_ITEMS),
+    TOGGLE_MENU,
+    [
+      "LIBRARY_ADD",
+      "LIBRARY_SAVED",
+    ],
+  );
+
+  return toggle_menu ? parse_song_menu_tokens(toggle_menu) : null;
+}
+
+export function get_menu_like_status(item: any): LikeStatus | null {
+  if (
+    find_object_by_icon_name(
+      j(item, MENU_ITEMS),
+      TOGGLE_MENU,
+      "FAVORITE",
+    )
+  ) {
+    return "INDIFFERENT";
+  }
+
+  if (
+    find_object_by_icon_name(
+      j(item, MENU_ITEMS),
+      TOGGLE_MENU,
+      "UNFAVORITE",
+    )
+  ) {
+    return "LIKE";
+  }
+
+  return null;
+}
+
+export interface ShuffleAndRadioIds {
+  shuffleId: string | null;
+  radioId: string | null;
+}
+
+export function get_shuffle_and_radio_ids(item: any): ShuffleAndRadioIds {
+  const shuffle = find_object_by_icon_name(
+    j(item, MENU_ITEMS),
+    "menuNavigationItemRenderer",
+    "MUSIC_SHUFFLE",
+  );
+
+  const radio = find_object_by_icon_name(
+    j(item, MENU_ITEMS),
+    "menuNavigationItemRenderer",
+    "MIX",
+  );
+
+  return {
+    shuffleId: shuffle
+      ? jo(shuffle, "menuNavigationItemRenderer", NAVIGATION_WATCH_PLAYLIST_ID)
+      : null,
+    radioId: radio
+      ? jo(radio, "menuNavigationItemRenderer", NAVIGATION_WATCH_PLAYLIST_ID)
+      : null,
+  };
+}
+
+export function parse_menu_library_like_status(item: any): LikeStatus | null {
+  const toggle_menu = item[TOGGLE_MENU],
+    service_type = toggle_menu.defaultIcon.iconType;
+
+  if (typeof service_type !== "string") return null;
+
+  return service_type == "LIBRARY_SAVED" ? "LIKE" : "INDIFFERENT";
+}
+
+export function get_library_like_status(item: any) {
+  const toggle_menu = find_object_by_icon_name(
+    j(item, MENU_ITEMS),
+    TOGGLE_MENU,
+    [
+      "LIBRARY_ADD",
+      "LIBRARY_SAVED",
+    ],
+  );
+
+  return toggle_menu ? parse_menu_library_like_status(toggle_menu) : null;
 }
 
 export function parse_format(format: any) {

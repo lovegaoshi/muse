@@ -1,5 +1,7 @@
 // commonly used navigation paths
 
+import { jo } from "./util.ts";
+
 export const THUMBNAIL = "thumbnail.thumbnails";
 export const THUMBNAILS = `thumbnail.musicThumbnailRenderer.${THUMBNAIL}`;
 export const CONTENT = "contents[0]";
@@ -118,4 +120,24 @@ export function find_objects_by_key(
   }
 
   return objects;
+}
+
+export function find_object_by_icon_name(
+  objectList: ObjectList,
+  key: string,
+  icons: string | string[],
+) {
+  return objectList && objectList.length > 0
+    ? objectList.find((item) => {
+      if (!Object.hasOwn(item, key)) return false;
+
+      const menu = item[key];
+      const icon = jo(menu, "defaultIcon.iconType") ??
+        jo(menu, "icon.iconType");
+
+      if (!icon) return false;
+
+      return [icons].flat().includes(icon);
+    })
+    : null;
 }
