@@ -31,6 +31,7 @@ import {
 } from "../nav.ts";
 import { get_option } from "../setup.ts";
 import { j, jo } from "../util.ts";
+import { get_buttons_like_status } from "./songs.ts";
 import {
   ArtistRun,
   get_library_like_status,
@@ -54,6 +55,7 @@ import {
 
 export interface Mood {
   name: string;
+  selected: boolean;
   params: string;
 }
 
@@ -70,6 +72,7 @@ export function parse_moods(results: any[]) {
 
     moods.push({
       name: j(renderer, TEXT_RUN_TEXT),
+      selected: j(renderer, "isSelected"),
       params: j(renderer, "navigationEndpoint.browseEndpoint.params"),
     });
   });
@@ -332,6 +335,7 @@ export function parse_explore_contents(results: any[]) {
       "musicNavigationButtonRenderer",
     ],
     trending: [_("trending"), parse_trending, MRLIR],
+    videos: [_("new videos"), parse_top_video],
   } satisfies CategoryMap;
 
   return parse_categories(results, categories_data);
@@ -518,6 +522,7 @@ export interface FlatSong {
     id: string;
   } | null;
   views: string | null;
+  likeStatus: LikeStatus | null;
 }
 
 export function parse_song_flat(data: any) {
@@ -535,6 +540,7 @@ export function parse_song_flat(data: any) {
     isExplicit: jo(data, BADGE_LABEL) != null,
     album: null,
     views: null,
+    likeStatus: get_buttons_like_status(data),
   };
 
   if (
@@ -625,7 +631,7 @@ export function parse_top_video(result: any): Ranked<ParsedVideo> {
   const runs = result.subtitle.runs;
   const artists_len = get_dot_separator_index(runs);
 
-  const rank = j(result, "customIndexColumn.musicCustomIndexColumnRenderer");
+  const rank = jo(result, "customIndexColumn.musicCustomIndexColumnRenderer");
 
   return {
     type: "video",
@@ -636,8 +642,8 @@ export function parse_top_video(result: any): Ranked<ParsedVideo> {
     playlistId: jo(result, NAVIGATION_PLAYLIST_ID),
     thumbnails: j(result, THUMBNAIL_RENDERER),
     views: runs[runs.length - 1].text,
-    rank: j(rank, TEXT_RUN_TEXT),
-    change: jo(rank, "icon.iconType")?.split("_")[2] || null,
+    rank: rank ? jo(rank, TEXT_RUN_TEXT) : null,
+    change: (rank && jo(rank, "icon.iconType")?.split("_")[2]) ?? null,
     likeStatus: get_menu_like_status(result),
   };
 }
@@ -825,7 +831,7 @@ type Translatable = keyof typeof STRINGS[keyof typeof STRINGS];
 export function _(id: Translatable) {
   const result = STRINGS[get_option("language") as keyof typeof STRINGS];
 
-  return result[id] ?? id;
+  return result?.[id] ?? id;
 }
 
 export function __(value: string) {
@@ -834,9 +840,11 @@ export function __(value: string) {
 
   const result = STRINGS[get_option("language") as keyof typeof STRINGS];
 
-  for (const key in result) {
-    if (result[key as Translatable] === value) {
-      return key as Translatable;
+  if (result) {
+    for (const key in result) {
+      if (result[key as Translatable] === value) {
+        return key as Translatable;
+      }
     }
   }
 

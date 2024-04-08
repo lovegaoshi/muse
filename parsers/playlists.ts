@@ -1,7 +1,6 @@
 import {
   BADGE_LABEL,
   MENU_ITEMS,
-  MENU_LIKE_STATUS,
   MENU_SERVICE,
   MRLIR,
   NAVIGATION_VIDEO_TYPE,
@@ -14,6 +13,7 @@ import { j, jo } from "../util.ts";
 import { TrendChange } from "./browsing.ts";
 import {
   Album,
+  get_buttons_like_status,
   LikeStatus,
   MenuTokens,
   parse_song_album,
@@ -31,7 +31,8 @@ import {
 export type VideoType =
   | "MUSIC_VIDEO_TYPE_OMV" /** Official Music Videos */
   | "MUSIC_VIDEO_TYPE_UGC" /** User Generated Content */
-  | "MUSIC_VIDEO_TYPE_ATV" /** Artist Videos */;
+  | "MUSIC_VIDEO_TYPE_ATV" /** Artist Videos */
+  | "MUSIC_VIDEO_TYPE_PRIVATELY_OWNED_TRACK" /** Song uploaded by user */;
 
 export interface PlaylistItem {
   videoId: string;
@@ -65,7 +66,7 @@ export const parse_playlist_items = (
 
     const data = result[MRLIR];
 
-    let videoId = null, setVideoId = null, like = null, feedback_tokens = null;
+    let videoId = null, setVideoId = null, feedback_tokens = null;
 
     // if the item has a menu, find its setVideoId
     if ("menu" in data) {
@@ -94,12 +95,10 @@ export const parse_playlist_items = (
     if (play != null) {
       if ("playNavigationEndpoint" in play) {
         videoId = j(play, "playNavigationEndpoint.watchEndpoint.videoId");
-
-        if ("menu" in data) {
-          like = jo(data, MENU_LIKE_STATUS);
-        }
       }
     }
+
+    const likeStatus = get_buttons_like_status(data)!;
 
     const title = get_item_text(data, 0);
 
@@ -147,7 +146,7 @@ export const parse_playlist_items = (
       title,
       artists,
       album,
-      likeStatus: like,
+      likeStatus,
       thumbnails,
       isAvailable,
       isExplicit,

@@ -7,6 +7,7 @@ import {
   NAVIGATION_WATCH_PLAYLIST_ID,
   TOGGLE_MENU,
 } from "../nav.ts";
+import { MENU_LIKE_STATUS } from "../nav.ts";
 import { j, jo } from "../util.ts";
 import { _ } from "./browsing.ts";
 import {
@@ -197,7 +198,7 @@ export function parse_song_runs(runs: any[], slice_start = 0) {
         parsed.duration_seconds = parse_duration(text);
       } else if (text.match(/^\d{4}$/)) {
         parsed.year = text;
-      } else if (text != _("song") && text != _("video")) {
+      } else if (text != _("video")) {
         // artist without id
         parsed.artists.push({
           name: text,
@@ -296,6 +297,10 @@ export function get_menu_like_status(item: any): LikeStatus | null {
   return null;
 }
 
+export function get_buttons_like_status(item: any): LikeStatus | null {
+  return jo(item, MENU_LIKE_STATUS);
+}
+
 export interface ShuffleAndRadioIds {
   shuffleId: string | null;
   radioId: string | null;
@@ -303,13 +308,13 @@ export interface ShuffleAndRadioIds {
 
 export function get_shuffle_and_radio_ids(item: any): ShuffleAndRadioIds {
   const shuffle = find_object_by_icon_name(
-    j(item, MENU_ITEMS),
+    jo(item, MENU_ITEMS),
     "menuNavigationItemRenderer",
     "MUSIC_SHUFFLE",
   );
 
   const radio = find_object_by_icon_name(
-    j(item, MENU_ITEMS),
+    jo(item, MENU_ITEMS),
     "menuNavigationItemRenderer",
     "MIX",
   );
@@ -335,7 +340,7 @@ export function parse_menu_library_like_status(item: any): LikeStatus | null {
 
 export function get_library_like_status(item: any) {
   const toggle_menu = find_object_by_icon_name(
-    j(item, MENU_ITEMS),
+    jo(item, MENU_ITEMS),
     TOGGLE_MENU,
     [
       "LIBRARY_ADD",
