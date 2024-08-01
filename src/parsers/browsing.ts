@@ -1,4 +1,4 @@
-import STRINGS from "../locales/strings.json" assert { type: "json" };
+import STRINGS from "../../locales/strings.json" assert { type: "json" };
 import { LikeStatus } from "../mod.ts";
 import { TAB_CONTENT } from "../nav.ts";
 
@@ -872,4 +872,10 @@ export function parse_two_columns(json: any) {
     secondary: renderer.secondaryContents,
     tab: j(renderer, TAB_CONTENT),
   };
+}
+
+export function parse_description_runs(runs: any) {
+  return runs.map((run: any) => {
+    return jo(run, "navigationEndpoint.urlEndpoint.url") ?? run.text;
+  }).join("");
 }

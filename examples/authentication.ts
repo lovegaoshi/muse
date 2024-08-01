@@ -1,11 +1,9 @@
-import { get_explore, get_home, setup } from "./mod.ts";
-import { get_option, set_option } from "./setup.ts";
-import { DenoFileStore } from "./store.ts";
-import { CacheFetch } from "./util/cache-fetch.ts";
+import * as muse from "../mod.ts";
+import { cache_fetch } from "../src/util/cache-fetch.ts";
 
-setup({
-  store: new DenoFileStore("store/muse-store.json"),
-  client: new CacheFetch(true),
+muse.setup({
+  store: new muse.DenoFileStore("store/muse-store.json"),
+  fetch: cache_fetch,
   debug: true,
 });
 
@@ -15,7 +13,7 @@ const css = {
   underline: "text-decoration: underline",
 };
 
-const auth = get_option("auth");
+const auth = muse.get_option("auth");
 
 const auth_flow = async () => {
   if (auth.has_token()) return;
@@ -30,7 +28,7 @@ const auth_flow = async () => {
     css.bold,
   );
 
-  confirm("Press enter when you have logged in");
+  alert("Press enter when you have logged in");
 
   console.log("Loading token...");
 
@@ -45,24 +43,10 @@ auth.addEventListener("requires-login", (event) => {
   resolve(auth_flow);
 });
 
-// request("browse", {
-//   data: {
-//     browseId: "UC_x4LxqOApIT5QAi-m-oXJw",
-//   },
-// })
-//   .then(async (data) => {
-//     console.log(await data.text());
-//   });
-
-get_explore()
-  // get_playlist("PLCwfwQhurMOukOqbFmYRidZ81ng_2iSUE")
-  // .then((data) => {
-  //   return get_queue(null, data.playlistId, { autoplay: true });
-  // })
+muse.get_library()
   .then((data) => {
     return Deno.writeTextFile(
-      "store/rickroll.json",
+      "store/library.json",
       JSON.stringify(data, null, 2),
     );
-    // return data;
   });
