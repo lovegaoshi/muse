@@ -82,7 +82,7 @@ export async function get_playlist_suggestions(
   playlistId: string,
   continuation: string,
   options: Omit<PaginationOptions, "continuation"> = {},
-  stopAfter = (tracks: PlaylistItem[]) => false,
+  stopAfter = (tracks: PlaylistItem[]) => false
 ): Promise<PlaylistSuggestions> {
   const { signal, limit = 6 } = options;
 
@@ -97,7 +97,7 @@ export async function get_playlist_suggestions(
     (params: any) => request_json(endpoint, { data, params, signal }),
     (data) => parse_playlist_items(data),
     undefined,
-    true,
+    true
   );
 
   const suggestions: PlaylistSuggestions = {
@@ -117,7 +117,7 @@ export async function get_more_playlist_tracks(
   playlistId: string,
   continuation: string,
   options: Omit<PaginationOptions, "continuation">,
-  stopAfter = (tracks: PlaylistItem[]) => false,
+  stopAfter = (tracks: PlaylistItem[]) => false
 ): Promise<MorePlaylistTracks> {
   const { signal, limit = 100 } = options;
 
@@ -133,7 +133,7 @@ export async function get_more_playlist_tracks(
     (contents) => parse_playlist_items(contents),
     undefined,
     undefined,
-    stopAfter,
+    stopAfter
   );
 
   const tracks: MorePlaylistTracks = {
@@ -147,10 +147,14 @@ export async function get_more_playlist_tracks(
 export async function get_playlist(
   playlistId: string,
   options?: GetPlaylistOptions,
-  stopAfter = (tracks: PlaylistItem[]) => false,
+  stopAfter = (tracks: PlaylistItem[]) => false
 ): Promise<Playlist> {
-  const { limit = 100, related = false, suggestions_limit = 0, signal } =
-    options || {};
+  const {
+    limit = 100,
+    related = false,
+    suggestions_limit = 0,
+    signal,
+  } = options || {};
 
   const browseId = playlistId.startsWith("VL") ? playlistId : `VL${playlistId}`;
   const data = { browseId };
@@ -163,13 +167,14 @@ export async function get_playlist(
   const results = j(secondary, SECTION_LIST_ITEM, "musicPlaylistShelfRenderer");
 
   const json_header = j(tab, SECTION_LIST_ITEM);
-  const header = jo(
-    json_header,
-    "musicEditablePlaylistDetailHeaderRenderer.header.musicResponsiveHeaderRenderer",
-  ) ?? j(json_header, "musicResponsiveHeaderRenderer");
+  const header =
+    jo(
+      json_header,
+      "musicEditablePlaylistDetailHeaderRenderer.header.musicResponsiveHeaderRenderer"
+    ) ?? j(json_header, "musicResponsiveHeaderRenderer");
   const editHeader = jo(
     json_header,
-    "musicEditablePlaylistDetailHeaderRenderer.editHeader.musicPlaylistEditHeaderRenderer",
+    "musicEditablePlaylistDetailHeaderRenderer.editHeader.musicPlaylistEditHeaderRenderer"
   );
   const own_playlist = !!editHeader;
 
@@ -185,7 +190,9 @@ export async function get_playlist(
     thumbnails: j(header, THUMBNAILS),
     description: jo(header, "description", DESCRIPTION_SHELF, DESCRIPTION),
     type: run_count > 0 ? j(header, SUBTITLE) : null,
-    authors: header.straplineTextOne?.runs ? parse_song_artists_runs(header.straplineTextOne.runs) : [],
+    authors: header.straplineTextOne?.runs
+      ? parse_song_artists_runs(header.straplineTextOne.runs)
+      : [],
     year: j(header, "subtitle.runs", (run_count - 1).toString(), "text"),
     trackCount: secondRuns ? secondRuns[0].text : null,
     duration: secondRuns && secondRuns.length > 2 ? secondRuns[2].text : null,
@@ -207,7 +214,9 @@ export async function get_playlist(
     let params = get_continuation_params(section_list);
 
     if (
-      params.continuation && own_playlist && (suggestions_limit > 0 || related)
+      params.continuation &&
+      own_playlist &&
+      (suggestions_limit > 0 || related)
     ) {
       const suggested = await request(params);
       const continuation = j(suggested, SECTION_LIST_CONTINUATION);
@@ -217,12 +226,12 @@ export async function get_playlist(
 
       playlist.suggestions = get_continuation_contents(
         suggestions_shelf,
-        (results: any) => parse_playlist_items(results),
+        (results: any) => parse_playlist_items(results)
       );
 
       playlist.suggestions_continuation = j(
         suggestions_shelf,
-        "continuations.0.reloadContinuationData.continuation",
+        "continuations.0.reloadContinuationData.continuation"
       );
 
       const continued_suggestions = await get_playlist_suggestions(
@@ -231,7 +240,7 @@ export async function get_playlist(
         {
           limit: suggestions_limit - playlist.suggestions.length,
           signal,
-        },
+        }
       );
 
       playlist.suggestions.push(...continued_suggestions.suggestions);
@@ -245,23 +254,75 @@ export async function get_playlist(
       if (continuation) {
         playlist.related = get_continuation_contents(
           j(continuation, CONTENT, CAROUSEL),
-          (results: any) => parse_content_list(results, parse_playlist),
+          (results: any) => parse_content_list(results, parse_playlist)
         );
       }
     }
   }
-    if ("continuations" in results && !stopAfter(playlist.tracks)) {
-      const continued_data = await get_more_playlist_tracks(
-        playlistId,
-        results,
-        {
-          limit: limit - playlist.tracks.length,
-          signal,
-        },
-        stopAfter,
-      );
+  if ("continuations" in results && !stopAfter(playlist.tracks)) {
+    const continued_data = await get_more_playlist_tracks(
+      playlistId,
+      results,
+      {
+        limit: limit - playlist.tracks.length,
+        signal,
+      },
+      stopAfter
+    );
 
     playlist.tracks.push(...continued_data.tracks);
+    playlist.continuation = continued_data.continuation;
+  }
+
+  playlist.duration_seconds = sum_total_duration(playlist);
+
+  return playlist;
+}
+
+export async function get_playlist_tracks_only(
+  playlistId: string,
+  options?: GetPlaylistOptions,
+  stopAfter = (tracks: PlaylistItem[]) => false
+): Promise<Partial<Playlist>> {
+  const {
+    limit = 100,
+    related = false,
+    suggestions_limit = 0,
+    signal,
+  } = options || {};
+
+  const browseId = playlistId.startsWith("VL") ? playlistId : `VL${playlistId}`;
+  const data = { browseId };
+  const endpoint = "browse";
+
+  const json = await request_json(endpoint, { data, signal });
+
+  const { secondary } = parse_two_columns(json);
+
+  const results = j(secondary, SECTION_LIST_ITEM, "musicPlaylistShelfRenderer");
+
+  const playlist: Partial<Playlist> = {
+    id: results.playlistId,
+    duration_seconds: 0,
+    tracks: parse_playlist_items(results.contents ?? []),
+    continuation: null,
+    suggestions: [],
+    suggestions_continuation: null,
+    related: [],
+  };
+
+  if ("continuations" in results && !stopAfter(playlist.tracks!)) {
+    const continued_data = await get_more_playlist_tracks(
+      playlistId,
+      results,
+      {
+        limit: limit - playlist.tracks!.length,
+        signal,
+      },
+      stopAfter
+    );
+
+    playlist.tracks!.push(...continued_data.tracks);
     playlist.continuation = continued_data.continuation;
   }
 
@@ -281,7 +342,7 @@ interface CreatePlaylistOptions extends AbortOptions {
 
 export async function create_playlist(
   title: string,
-  options: CreatePlaylistOptions = {},
+  options: CreatePlaylistOptions = {}
 ): Promise<string> {
   const {
     description = "",
@@ -335,7 +396,7 @@ export interface EditPlaylistResult {
 
 export async function edit_playlist(
   playlistId: string,
-  options: EditPlaylistOptions,
+  options: EditPlaylistOptions
 ): Promise<EditPlaylistResult> {
   const {
     title,
@@ -356,13 +417,14 @@ export async function edit_playlist(
 
   const actions: ({ action: string } & Record<string, any>)[] = [];
 
-  const dedupeOption = dedupe === "check"
-    ? "DEDUPE_OPTION_CHECK"
-    : dedupe === "drop_duplicate"
-    ? "DEDUPE_OPTION_DROP_DUPLICATE"
-    : dedupe === "skip"
-    ? "DEDUPE_OPTION_SKIP"
-    : null;
+  const dedupeOption =
+    dedupe === "check"
+      ? "DEDUPE_OPTION_CHECK"
+      : dedupe === "drop_duplicate"
+      ? "DEDUPE_OPTION_DROP_DUPLICATE"
+      : dedupe === "skip"
+      ? "DEDUPE_OPTION_SKIP"
+      : null;
 
   if (title) {
     actions.push({
@@ -460,7 +522,7 @@ export async function edit_playlist(
 
 export async function delete_playlist(
   playlistId: string,
-  options: AbortOptions = {},
+  options: AbortOptions = {}
 ): Promise<EditPlaylistStatus> {
   await check_auth();
 
@@ -483,7 +545,7 @@ export interface AddPlaylistOptions extends AbortOptions {
 export function add_playlist_sources(
   playlistId: string,
   source_playlists: string[],
-  options: AddPlaylistOptions = {},
+  options: AddPlaylistOptions = {}
 ): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, {
     add_source_playlists: source_playlists,
@@ -494,7 +556,7 @@ export function add_playlist_sources(
 export function add_playlist_items(
   playlistId: string,
   video_ids: string[],
-  options: AddPlaylistOptions = {},
+  options: AddPlaylistOptions = {}
 ): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, { add_videos: video_ids, ...options });
 }
@@ -502,7 +564,7 @@ export function add_playlist_items(
 export function remove_playlist_items(
   playlistId: string,
   video_ids: { videoId: string; setVideoId: string }[],
-  options: AbortOptions = {},
+  options: AbortOptions = {}
 ): Promise<EditPlaylistResult> {
   return edit_playlist(playlistId, {
     remove_videos: video_ids,
@@ -525,7 +587,7 @@ export interface AddToPlaylist {
 export async function get_add_to_playlist(
   videoIds: string[] | null,
   playlistId: string | null = null,
-  options: AbortOptions = {},
+  options: AbortOptions = {}
 ) {
   await check_auth();
 
@@ -543,7 +605,7 @@ export async function get_add_to_playlist(
   } else {
     throw new MuseError(
       ERROR_CODE.INVALID_PARAMETER,
-      "Either videoIds or playlistId must be provided",
+      "Either videoIds or playlistId must be provided"
     );
   }
 
@@ -556,10 +618,7 @@ export async function get_add_to_playlist(
 
   const contents = j(json, "contents.0.addToPlaylistRenderer");
 
-  const recents = j(
-    contents,
-    "topShelf.musicCarouselShelfRenderer.contents",
-  );
+  const recents = j(contents, "topShelf.musicCarouselShelfRenderer.contents");
 
   for (const recent of recents) {
     const item = recent.musicTwoRowItemRenderer;
@@ -589,13 +648,11 @@ export async function get_add_to_playlist(
 
     result.playlists.push({
       thumbnails: j(item, THUMBNAIL_RENDERER),
-      playlistId: jo(
-        item,
-        "navigationEndpoint.playlistEditEndpoint.playlistId",
-      ) ?? "LM",
-      songs: j(item, "shortBylineText.runs").map((run: any) => run.text).join(
-        "",
-      ),
+      playlistId:
+        jo(item, "navigationEndpoint.playlistEditEndpoint.playlistId") ?? "LM",
+      songs: j(item, "shortBylineText.runs")
+        .map((run: any) => run.text)
+        .join(""),
       title: j(item, TITLE_TEXT),
     });
   }
